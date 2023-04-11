@@ -26,8 +26,8 @@ spark = SparkSession.builder \
 # Variables Configuration
 #===================================================================
 
-path_csv = "../files/2023-04-11T04-36-02-388Zinstituciones_educativas.csv"
-path_json = "../files/2023-04-11T04-36-09-824ZUniversidades.json"
+path_csv = "./files/2023-04-11T04-36-02-388Zinstituciones_educativas.csv"
+path_json = "./files/2023-04-11T04-36-09-824ZUniversidades.json"
 
 #===================================================================
 # Fuctions
