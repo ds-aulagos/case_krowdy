@@ -8,6 +8,9 @@ import pyspark.sql.types as T
 from datetime import datetime
 from pyspark.sql import SparkSession
 
+from pyspark.ml import Pipeline
+from pyspark.ml.feature import StopWordsRemover, Tokenizer, NGram, HashingTF, MinHashLSH, RegexTokenizer, SQLTransformer
+
 #===================================================================
 # Spark
 #===================================================================
@@ -42,8 +45,15 @@ def read_json(path_file):
 #===================================================================
 
 def  process_df():
-    df_csv = read_csv(path_csv)
-    df_json = read_json(path_json)
+    df_csv = read_csv(path_csv)\
+                .withColumn("candidate_id", F.col("candidateId"))\
+                .select("candidate_id","value")
+
+    df_json = read_json(path_json)\
+                .withColumn("cod_inei", F.col("código INEI"))\
+                .withColumn("nombre", F.col("Nombre "))\
+                .withColumn("siglas", F.col("Siglas "))\
+                .select("nombre","siglas","cod_inei")
 
     df_csv.show(truncate = False)
     df_json.show(truncate = False)
@@ -51,6 +61,11 @@ def  process_df():
     print(df_csv.count())
     print(df_json.count())
 
+    df_value_siglas_lower = df_json.alias("j")\
+                                .join(df_csv.alias("c"), [F.lower("j.siglas") == F.lower("c.value")], "inner")\
+                                .select("*")
+
+    df_value_siglas_lower.show(truncate = False)
 
 #===================================================================
 
