@@ -32,6 +32,17 @@ spark = SparkSession.builder \
 path_csv = "./files/2023-04-11T04-36-02-388Zinstituciones_educativas.csv"
 path_json = "./files/2023-04-11T04-36-09-824ZUniversidades.json"
 
+model = Pipeline(stages=[
+    SQLTransformer(statement="SELECT *, lower(Title) lower FROM __THIS__"),
+    Tokenizer(inputCol="lower", outputCol="token"),
+    StopWordsRemover(inputCol="token", outputCol="stop"),
+    SQLTransformer(statement="SELECT *, concat_ws(' ', stop) concat FROM __THIS__"),
+    RegexTokenizer(pattern="", inputCol="concat", outputCol="char", minTokenLength=1),
+    NGram(n=2, inputCol="char", outputCol="ngram"),
+    HashingTF(inputCol="ngram", outputCol="vector"),
+    MinHashLSH(inputCol="vector", outputCol="lsh", numHashTables=3)
+])
+
 #===================================================================
 # Fuctions
 #===================================================================
@@ -66,7 +77,18 @@ def  process_df():
                                 .select("*")
 
     df_value_siglas_lower.show(truncate = False)
+    print(df_value_siglas_lower.count())
 
+    df_csv_diff = df_csv.join(df_value_siglas_lower, ["value"], "left_anti")
+    df_json_diff = df_json.join(df_value_siglas_lower, ["siglas"], "left_anti")
+
+    df_csv_diff.show(truncate = False)
+    df_json_diff.show(truncate = False)
+
+    print(df_csv_diff.count())
+    print(df_json_diff.count())
+
+    
 #===================================================================
 
 def main():
