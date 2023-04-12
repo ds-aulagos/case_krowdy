@@ -32,16 +32,17 @@ spark = SparkSession.builder \
 path_csv = "./files/2023-04-11T04-36-02-388Zinstituciones_educativas.csv"
 path_json = "./files/2023-04-11T04-36-09-824ZUniversidades.json"
 
-model = Pipeline(stages=[
-    SQLTransformer(statement="SELECT *, lower(Title) lower FROM __THIS__"),
-    Tokenizer(inputCol="lower", outputCol="token"),
-    StopWordsRemover(inputCol="token", outputCol="stop"),
-    SQLTransformer(statement="SELECT *, concat_ws(' ', stop) concat FROM __THIS__"),
-    RegexTokenizer(pattern="", inputCol="concat", outputCol="char", minTokenLength=1),
-    NGram(n=2, inputCol="char", outputCol="ngram"),
-    HashingTF(inputCol="ngram", outputCol="vector"),
-    MinHashLSH(inputCol="vector", outputCol="lsh", numHashTables=3)
-])
+locale = spark._jvm.java.util.Locale
+locale.setDefault(locale.forLanguageTag("es-ES"))
+
+sql_transformer_lower = SQLTransformer(statement="SELECT *, lower(value) lower FROM __THIS__")
+tokenizer = Tokenizer(inputCol="lower", outputCol="token")
+stop_words_remover = StopWordsRemover(inputCol="token", outputCol="stop")
+sql_transformer_concat = SQLTransformer(statement="SELECT *, concat_ws(' ', stop) concat FROM __THIS__")
+regex_tokenizer = RegexTokenizer(pattern="", inputCol="concat", outputCol="char", minTokenLength=1)
+n_gram = NGram(n=2, inputCol="char", outputCol="ngram")
+hashing_tf = HashingTF(inputCol="ngram", outputCol="vector")
+min_hash_lsh = MinHashLSH(inputCol="vector", outputCol="lsh", numHashTables=3)
 
 #===================================================================
 # Fuctions
@@ -58,6 +59,7 @@ def read_json(path_file):
 def  process_df():
     df_csv = read_csv(path_csv)\
                 .withColumn("candidate_id", F.col("candidateId"))\
+                .withColumn("value", F.regexp_replace(F.col("value"), "\"", ""))\
                 .select("candidate_id","value")
 
     df_json = read_json(path_json)\
@@ -79,8 +81,8 @@ def  process_df():
     df_value_siglas_lower.show(truncate = False)
     print(df_value_siglas_lower.count())
 
-    df_csv_diff = df_csv.join(df_value_siglas_lower, ["value"], "left_anti")
-    df_json_diff = df_json.join(df_value_siglas_lower, ["siglas"], "left_anti")
+    df_csv_diff = df_csv.join(df_value_siglas_lower, ["value"], "left_anti").distinct()
+    df_json_diff = df_json.join(df_value_siglas_lower, ["siglas"], "left_anti").distinct()
 
     df_csv_diff.show(truncate = False)
     df_json_diff.show(truncate = False)
@@ -88,7 +90,15 @@ def  process_df():
     print(df_csv_diff.count())
     print(df_json_diff.count())
 
-    
+    pipeline = Pipeline(stages=[sql_transformer_lower, tokenizer, stop_words_remover, sql_transformer_concat, regex_tokenizer, n_gram, hashing_tf, min_hash_lsh])
+
+    pipelineFit = pipeline.fit(df_csv_diff)
+    result_csv = pipelineFit.transform(df_csv_diff)
+    result_csv = result_csv.filter(F.size(F.col("ngram")) > 0)
+    #print(f"Example transformation ({result_csv.count()} csv_diff):")
+    result_csv.select('candidate_id', 'value', 'concat', 'char', 'ngram', 'vector', 'lsh').show(1)
+
+
 #===================================================================
 
 def main():
